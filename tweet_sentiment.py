@@ -49,17 +49,19 @@ for j in range(50):
         timeline = json.loads(res.text)
         # 各ツイートの本文を表示
         for i in range(len(timeline)):
+            time = datetime.datetime.strptime(timeline[i]['created_at'],
+                '%a %b %d %H:%M:%S %z %Y').astimezone(gettz('Asia/Tokyo'))
+            if time < datetime.datetime(2019,1,1).astimezone(gettz('Asia/Tokyo')):
+                break
+            times.append(time.strftime('%Y-%m-%d'))
             if i != len(timeline)-1:
                 f_out.write(re.sub(r'[^ぁ-んァ-ンー-龥a-xA-Z0-9_]', "", timeline[i]['text']) + '\n')
             else:
                 f_out.write(re.sub(r'[^ぁ-んァ-ンー-龥a-xA-Z0-9_]', "", timeline[i]['text']) + '\n')
                 #一番最後のツイートIDをパラメータmax_idに追加
                 params['max_id'] = timeline[i]['id']-1
-            time = datetime.datetime.strptime(timeline[i]['created_at'],
-                '%a %b %d %H:%M:%S %z %Y').astimezone(gettz('Asia/Tokyo'))
-            times.append(time.strftime('%Y-%m-%d'))
-            if time < datetime.datetime(2018,1,1).astimezone(gettz('Asia/Tokyo')):
-                break
+        if time < datetime.datetime(2019,1,1).astimezone(gettz('Asia/Tokyo')):
+            break
 
 f_out.close()
 
@@ -75,7 +77,9 @@ with open('tweet_data.csv','r') as f:
 len(texts)
 len(times)
 
-df = pd.DataFrame({'time' : times, 'text' : texts, 'score' : np.zeros(len(times))})
+df = pd.DataFrame({'time' : times, 'text' : texts,
+                    'score' : np.zeros(len(times)),
+                    'magnitude' : np.zeros(len(times))})
 
 num = 0
 for i in range(150):
@@ -86,6 +90,7 @@ df = df[:150]
 language_client = language.Client()
 itr = 0
 scores = []
+magnitudes = []
 while(itr < len(df)):
     str_len = 0
     text = ""
@@ -117,15 +122,20 @@ while(itr < len(df)):
         # print('Text: {}'.format(sentence.content))
         # print('Sentiment: {}, {}'.format(sentence.sentiment.score, sentence.sentiment.magnitude))
         scores.append(sentence.sentiment.score)
+        magnitudes.append(sentence.sentiment.magnitude)
 
 for i in range(len(scores)):
     df.score[i] = scores[i]
+    df.magnitude[i] = magnitudes[i]
 
 df.to_csv("tweet_sentiment.csv")
 
 df.time = pd.to_datetime(df.time)
-hoge = df[['time', 'score']].groupby('time').mean()
-fuga = hoge['score'].groupby(hoge.index.week).mean()
+df['sm'] = df.score * df.magnitude
+# hoge = df[['time', 'score']].groupby('time').mean()
+hoge = df[['time', 'sm']].groupby('time').mean()
+# fuga = hoge['score'].groupby(hoge.index.week).mean()
+fuga = hoge['sm'].groupby(hoge.index.week).mean()
 
 # plt.plot(hoge.index, hoge.score)
 plt.plot(fuga.index, fuga.values)

@@ -11,6 +11,7 @@ import pandas as pd
 import numpy as np
 import re
 import os
+import tweepy
 
 #取得したkeyを以下で定義する
 access_token        = os.getenv('ACCESS_TOKEN')
@@ -50,6 +51,8 @@ def get_tweets(user_id):
 
             n = 0
             timeline = json.loads(res.text)
+            if len(timeline) == 0:
+                break
             # 各ツイートの本文を表示
             for i in range(len(timeline)):
                 time = datetime.datetime.strptime(timeline[i]['created_at'],
@@ -79,6 +82,10 @@ def get_tweets(user_id):
 
     print('user_id : ' + str(user_id))
     print('tweets : ' + str(len(texts)))
+    if len(times) < len(texts):
+        texts = texts[:len(times)]
+    if len(texts) < len(times):
+        times = times[:len(texts)]
     df = pd.DataFrame({'time' : times, 'text' : texts,
                         'score' : np.zeros(len(times)),
                         'magnitude' : np.zeros(len(times))})
@@ -88,10 +95,11 @@ def get_tweets(user_id):
 def sentiment_analysis(user_id, num_tweets=500):
     fn = 'tweets_df/' + str(user_id) + '.csv'
     df = pd.read_csv(fn)
+    df = df.dropna()
     if len(df) < num_tweets:
         return
     use_index = np.sort(np.random.choice(df.index,num_tweets,replace=False))
-    df = df.iloc[use_index]
+    df = df.loc[use_index]
 
     language_client = language.Client()
     itr = 0
@@ -129,6 +137,17 @@ def sentiment_analysis(user_id, num_tweets=500):
     fn = 'sentiment/' + str(user_id) + '.csv'
     df.to_csv(fn, index=False)
 
+def get_friend_ids():
+    auth = tweepy.OAuthHandler(consumer_key, consumer_key_secret)
+    auth.set_access_token(access_token, access_token_secret)
+    api = tweepy.API(auth)
+
+    friends_id = []
+    friends = tweepy.Cursor(api.friends_ids, screen_name='yukishark').pages
+
+    for f in friends():
+        friends_id.extend(f)
+    return friends_id
 
 if __name__ == "__main__":
     # test
@@ -152,6 +171,12 @@ if __name__ == "__main__":
     plt.grid(True)
     plt.title("Sentiment Analysis")
 
+    # sentiment analysis for all friends
+    friends_id = get_friend_ids()
+    for itr, user_id in enumerate(friends_id):
+        print('itr : ' + str(itr))
+        get_tweets(user_id)
+        sentiment_analysis(user_id, num_tweets=365)
 
     # # =============================================================== #
     #

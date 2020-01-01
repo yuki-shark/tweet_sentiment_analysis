@@ -12,6 +12,7 @@ import numpy as np
 import re
 import os
 import tweepy
+import glob
 
 #取得したkeyを以下で定義する
 access_token        = os.getenv('ACCESS_TOKEN')
@@ -149,6 +150,37 @@ def get_friend_ids():
         friends_id.extend(f)
     return friends_id
 
+def get_aggregate_df():
+    df_all = pd.DataFrame({'week' : np.arange(1, 54)})
+    file_list = glob.glob("sentiment/*")
+    for fn in file_list:
+        # fn = file_list[1]
+        # aggregate "score * magnitude" by week
+        user_id = fn.split('/')[1].split('.')[0]
+        print(user_id)
+        df = pd.read_csv(fn)
+        df["sm"] = df.score * df.magnitude
+        df.time = pd.to_datetime(df.time)
+        df = df.set_index("time")
+        df["week"] = df.index.week
+        df = df[df.index < datetime.datetime(2020,1,1)]
+        df.loc[(df.index > datetime.datetime(2019,12,1)) & (df.week == 1), "week"] = 53
+        df_w = pd.DataFrame(df.groupby("week")["sm"].mean()).reset_index()
+        df_w = df_w.rename(columns={'sm': user_id})
+        df_all = pd.merge(df_all, df_w, on='week', how='left')
+
+        # save the result
+        plt.clf()
+        plt.plot(df_w['week'], df_w[user_id], label=user_id)
+        plt.grid(True)
+        plt.title("Sentiment Analysis")
+        plt.xlabel("week")
+        plt.ylabel("sentiment")
+        plt.legend()
+        fn = 'plot/' + user_id + '.png'
+        plt.savefig(fn, bbox_inches="tight")
+    return df_all
+
 if __name__ == "__main__":
     # test
     user_id = 2366743729
@@ -177,6 +209,10 @@ if __name__ == "__main__":
         print('itr : ' + str(itr))
         get_tweets(user_id)
         sentiment_analysis(user_id, num_tweets=365)
+
+    # get aggregated df
+    df = get_aggregate_df()
+    df.to_csv('aggregate_data.csv')
 
     # # =============================================================== #
     #

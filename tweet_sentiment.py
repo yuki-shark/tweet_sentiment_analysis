@@ -225,6 +225,44 @@ if __name__ == "__main__":
         get_tweets(user_id)
         sentiment_analysis(user_id, num_tweets=365)
 
+    for freq in ['week', 'weekday', 'month']:
+        for agg in ['mean', 'min', 'max']:
+            print('freq : ' + freq)
+            print('agg : ' + agg)
+            
+            # get aggregated df
+            df = get_aggregate_df(target_column='score', freq=freq, agg=agg, plot=False)
+            fn = 'score_' + freq + '_' + agg + '.csv'
+            df.to_csv(fn, index=False)
+            if freq == 'week':
+                nan_lim = 10
+            else:
+                nan_lim = 1
+            df_nan = df.isnull().sum()
+            df = df[df_nan[df_nan < nan_lim].index]
+            df = df.fillna(0).set_index(freq)
+            df_w = df.mean(axis=1)
+
+            # save the result
+            if freq == 'weekday':
+                old_xticks = np.arange(0, 7)
+                new_xticks = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            else:
+                if freq == 'week':
+                    old_xticks = np.arange(0, 12) * 4.42 + 1.0
+                else:
+                    old_xticks = np.arange(1, 13)
+                new_xticks = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            plt.clf()
+            plt.plot(df_w.index, df_w.values)
+            plt.xlabel(freq)
+            plt.ylabel("sentiment")
+            plt.xticks(old_xticks, new_xticks)
+            plt.grid(True)
+            title = "Sentiment Transition ({freq}, {agg})".format(freq=freq.capitalize(), agg=agg.capitalize())
+            plt.title(title)
+            fn = 'score_' + freq + '_' + agg + '.png'
+            plt.savefig(fn, bbox_inches="tight")
 
     # # =============================================================== #
     #

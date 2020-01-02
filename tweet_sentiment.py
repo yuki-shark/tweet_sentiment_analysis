@@ -150,11 +150,18 @@ def get_friend_ids():
         friends_id.extend(f)
     return friends_id
 
-def get_aggregate_df():
-    df_all = pd.DataFrame({'week' : np.arange(1, 54)})
+def get_aggregate_df(target_column='sm', freq='week', agg='mean', plot=False):
+    if freq == 'week':
+        df_all = pd.DataFrame({'week' : np.arange(1, 54)})
+    elif freq == "weekday":
+        df_all = pd.DataFrame({'weekday' : np.arange(0, 7)})
+    elif freq == "month":
+        df_all = pd.DataFrame({'month' : np.arange(1, 13)})
+    else:
+        return pd.DataFrame()
     file_list = glob.glob("sentiment/*")
     for fn in file_list:
-        # fn = file_list[1]
+        # fn = file_list[3]
         # aggregate "score * magnitude" by week
         user_id = fn.split('/')[1].split('.')[0]
         print(user_id)
@@ -165,20 +172,28 @@ def get_aggregate_df():
         df["week"] = df.index.week
         df = df[df.index < datetime.datetime(2020,1,1)]
         df.loc[(df.index > datetime.datetime(2019,12,1)) & (df.week == 1), "week"] = 53
-        df_w = pd.DataFrame(df.groupby("week")["sm"].mean()).reset_index()
-        df_w = df_w.rename(columns={'sm': user_id})
-        df_all = pd.merge(df_all, df_w, on='week', how='left')
+        df["weekday"] = df.index.weekday
+        df["month"] = df.index.month
+        if agg == 'mean':
+            df_w = pd.DataFrame(df.groupby(freq)[target_column].mean()).reset_index()
+        elif agg == 'min':
+            df_w = pd.DataFrame(df.groupby(freq)[target_column].min()).reset_index()
+        elif agg == 'max':
+            df_w = pd.DataFrame(df.groupby(freq)[target_column].max()).reset_index()
+        df_w = df_w.rename(columns={target_column: user_id})
+        df_all = pd.merge(df_all, df_w, on=freq, how='left')
 
         # save the result
-        plt.clf()
-        plt.plot(df_w['week'], df_w[user_id], label=user_id)
-        plt.grid(True)
-        plt.title("Sentiment Analysis")
-        plt.xlabel("week")
-        plt.ylabel("sentiment")
-        plt.legend()
-        fn = 'plot/' + user_id + '.png'
-        plt.savefig(fn, bbox_inches="tight")
+        if plot:
+            plt.clf()
+            plt.plot(df_w[freq], df_w[user_id], label=user_id)
+            plt.grid(True)
+            plt.title("Sentiment Analysis")
+            plt.xlabel(freq)
+            plt.ylabel("sentiment")
+            plt.legend()
+            fn = 'plot/' + user_id + '.png'
+            plt.savefig(fn, bbox_inches="tight")
     return df_all
 
 if __name__ == "__main__":
@@ -210,9 +225,6 @@ if __name__ == "__main__":
         get_tweets(user_id)
         sentiment_analysis(user_id, num_tweets=365)
 
-    # get aggregated df
-    df = get_aggregate_df()
-    df.to_csv('aggregate_data.csv')
 
     # # =============================================================== #
     #
